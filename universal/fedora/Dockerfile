@@ -1,12 +1,11 @@
 # syntax=docker/dockerfile:1.3-labs
 
-# updateBaseImages.sh can't operate on SHA-based tags as they're not date-based or semver-sequential, and therefore cannot be ordered
-FROM quay.io/devfile/base-developer-image:ubi8-latest
+FROM quay.io/demo-ai-edge-crazy-train/base-developer-image:opencv
 LABEL maintainer="Red Hat, Inc."
 
 LABEL com.redhat.component="devfile-universal-container"
 LABEL name="devfile/universal-developer-image"
-LABEL version="ubi8"
+LABEL version="fedora"
 
 #label for EULA
 LABEL com.redhat.license_terms="https://www.redhat.com/en/about/red-hat-end-user-license-agreements#UBI"
@@ -121,31 +120,30 @@ RUN curl -fLo mill https://raw.githubusercontent.com/lefou/millw/main/millw && \
     mv mill /usr/local/bin/
 
 # C/CPP
-RUN dnf -y install llvm-toolset gcc gcc-c++ clang clang-libs clang-tools-extra gdb
+RUN dnf -y install llvm gcc gcc-c++ clang clang-libs clang-tools-extra gdb
 
 # Go 1.18+    - installed to /usr/bin/go
 # gopls 0.10+ - installed to /home/tooling/go/bin/gopls and /home/tooling/go/pkg/mod/
-RUN dnf install -y go-toolset && \
+RUN dnf install -y golang && \
     GO111MODULE=on go install -v golang.org/x/tools/gopls@latest && \
     chgrp -R 0 /home/tooling && chmod -R g=u /home/tooling
 ENV GOBIN="/home/tooling/go/bin/"
 ENV PATH="$GOBIN:$PATH"
 
 # Python
-RUN dnf -y install python3.11 python3.11-devel python3.11-setuptools python3.11-pip nss_wrapper
+RUN dnf -y install python3 python3-devel python3-setuptools python3-pip nss_wrapper
 
 RUN cd /usr/bin \
-    && if [ ! -L python ]; then ln -s python3.11 python; fi \
-    && if [ ! -L pydoc ]; then ln -s pydoc3.11 pydoc; fi \
-    && if [ ! -L python-config ]; then ln -s python3.11-config python-config; fi \
-    && if [ ! -L pip ]; then ln -s pip-3.11 pip; fi
+    && if [ ! -e python ]; then ln -s python3 python; fi \
+    && if [ ! -e pydoc ]; then ln -s pydoc3 pydoc; fi \
+    && if [ ! -e python-config ]; then ln -s python3-config python-config; fi \
+    && if [ ! -e pip ]; then ln -s pip-3 pip; fi
 
 RUN pip install pylint yq
 
 # PHP
 ENV PHP_VERSION=7.4
-RUN dnf -y module enable php:$PHP_VERSION && \
-    dnf install -y --setopt=tsflags=nodocs php php-mysqlnd php-pgsql php-bcmath \
+RUN dnf install -y --setopt=tsflags=nodocs php php-mysqlnd php-pgsql php-bcmath \
                 php-gd php-intl php-json php-ldap php-mbstring php-pdo \
                 php-pear php-zlib php-mysqli php-curl php-xml php-devel\
                 php-process php-soap php-opcache php-fpm ca-certificates \
@@ -207,9 +205,7 @@ RUN curl -L https://mirror.openshift.com/pub/openshift-v4/clients/pipelines/${TK
     && chmod +x /usr/local/bin/tkn /usr/local/bin/opc /usr/local/bin/tkn-pac
  
 ## podman buildah skopeo
-RUN dnf -y module enable container-tools:rhel8 && \
-    dnf -y update && \
-    dnf -y reinstall shadow-utils && \
+RUN dnf -y reinstall shadow-utils && \
     dnf -y install podman buildah skopeo fuse-overlayfs
 RUN echo 'alias docker=podman' >> ${PROFILE_EXT}
 
@@ -224,13 +220,7 @@ RUN touch /etc/subgid /etc/subuid  && \
     echo user:10000:65536 > /etc/subuid  && \
     echo user:10000:65536 > /etc/subgid
 
-# Adjust storage.conf to enable Fuse storage.
-RUN sed -i -e 's|^#mount_program|mount_program|g' -e '/additionalimage.*/a "/var/lib/shared",' /etc/containers/storage.conf
-RUN mkdir -p /var/lib/shared/overlay-images /var/lib/shared/overlay-layers; \
-    touch /var/lib/shared/overlay-images/images.lock; \
-    touch /var/lib/shared/overlay-layers/layers.lock
-
-# But use VFS since we were not able to make Fuse work yet...
+# Use VFS
 RUN mkdir -p "${HOME}"/.config/containers && \
    (echo '[storage]';echo 'driver = "vfs"') > "${HOME}"/.config/containers/storage.conf
 
@@ -266,9 +256,9 @@ echo '[ -f ~/.kubectl_aliases ] && source ~/.kubectl_aliases' >> ${PROFILE_EXT}
 EOF
 
 ## shellcheck
-RUN <<EOF
+RUN <<"EOF"
 dnf install -y xz
-set -euf -o pipefail
+set -xeuf -o pipefail
 TEMP_DIR="$(mktemp -d)"
 cd "${TEMP_DIR}"
 SHELL_CHECK_VERSION="0.8.0"
@@ -283,8 +273,8 @@ rm -rf "${TEMP_DIR}"
 EOF
 
 ## krew
-RUN <<EOF
-set -euf -o pipefail
+RUN <<"EOF"
+set -xeuf -o pipefail
 TEMP_DIR="$(mktemp -d)"
 cd "${TEMP_DIR}"
 KREW_VERSION="0.4.2"
@@ -312,8 +302,8 @@ rm -rf "${TEMP_DIR}"
 EOF
 
 ## helm
-RUN <<EOF
-set -euf -o pipefail
+RUN <<"EOF"
+set -xeuf -o pipefail
 TEMP_DIR="$(mktemp -d)"
 cd "${TEMP_DIR}"
 HELM_VERSION="3.14.3"
@@ -330,8 +320,8 @@ rm -rf "${TEMP_DIR}"
 EOF
 
 ## kustomize
-RUN <<EOF
-set -euf -o pipefail
+RUN <<"EOF"
+set -xeuf -o pipefail
 TEMP_DIR="$(mktemp -d)"
 cd "${TEMP_DIR}"
 KUSTOMIZE_VERSION="5.3.0"
@@ -349,8 +339,8 @@ rm -rf "${TEMP_DIR}"
 EOF
 
 ## tektoncd-cli
-RUN <<EOF
-set -euf -o pipefail
+RUN <<"EOF"
+set -xeuf -o pipefail
 TEMP_DIR="$(mktemp -d)"
 cd "${TEMP_DIR}"
 TKN_VERSION="0.20.0"
@@ -368,8 +358,8 @@ rm -rf "${TEMP_DIR}"
 EOF
 
 ## knative-cli
-RUN <<EOF
-set -euf -o pipefail
+RUN <<"EOF"
+set -xeuf -o pipefail
 TEMP_DIR="$(mktemp -d)"
 cd "${TEMP_DIR}"
 KN_VERSION="1.13.0"
@@ -388,8 +378,8 @@ rm -rf "${TEMP_DIR}"
 EOF
 
 ## terraform-cli
-RUN <<EOF
-set -euf -o pipefail
+RUN <<"EOF"
+set -xeuf -o pipefail
 TEMP_DIR="$(mktemp -d)"
 cd "${TEMP_DIR}"
 TF_VERSION="1.7.5"
@@ -414,8 +404,8 @@ RUN curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/sk
 # e2fsprogs setup
 # Since e2fsprogs-static package has removed RHEL 8 distribution, it is not possible to install from the repository
 # https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html-single/considerations_in_adopting_rhel_8/index#removed-packages_changes-to-packages
-RUN <<EOF
-set -euf -o pipefail
+RUN <<"EOF"
+set -xeuf -o pipefail
 TEMP_DIR="$(mktemp -d)"
 cd "${TEMP_DIR}"
 E2FSPROGS_VERSION="1.46.5"
@@ -437,6 +427,9 @@ cd -
 rm -rf "${TEMP_DIR}"
 EOF
 
+# Install stow and symlinks
+RUN dnf install -y stow symlinks
+
 # Bash completions
 RUN dnf -y install bash-completion \
     && dnf clean all \
@@ -455,8 +448,10 @@ RUN echo 'export SDKMAN_DIR="/home/tooling/.sdkman"' >> ${PROFILE_EXT}
 RUN echo '[[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"' >> ${PROFILE_EXT}
 
 
+# First, convert all absolute symlinks to relative symlinks because it is pre-requisites of "stow" (see aspiers/stow#76)
 # Create symbolic links from /home/tooling/ -> /home/user/
-RUN stow . -t /home/user/ -d /home/tooling/ --no-folding
+RUN symlinks -cr /home/tooling/ \
+ && stow . -t /home/user/ -d /home/tooling/ --no-folding
 
 # Set permissions on /etc/passwd, /etc/group, /etc/pki and /home to allow arbitrary users to write
 RUN chgrp -R 0 /home && chmod -R g=u /etc/passwd /etc/group /home /etc/pki
